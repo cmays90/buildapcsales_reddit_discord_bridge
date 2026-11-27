@@ -16,8 +16,9 @@ jobs:
         with:
           node-version-file: reddit-interactions/.nvmrc
           cache: npm
-          cache-dependency-path: reddit-interactions/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run test:types
       - run: npm run lint
       - run: npm run test:unit
