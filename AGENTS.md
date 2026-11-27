@@ -46,6 +46,10 @@ Never silence a lint instead of fixing what it's pointing at. `#[allow(dead_code
 - Package names are `reddit-interactions` and `discord-interactions` — deliberately renamed from generic `devvit-app`/`worker`. Don't revert.
 - Pure logic with no `worker`-crate dependency belongs in `discord-interactions/src/interactions.rs` so it stays testable with plain `cargo test`; `lib.rs` stays thin glue to the `worker` crate.
 
+## Git workflow
+
+No direct commits to `main`, even though GitHub currently lets an admin bypass the branch protection rule. Branch, push, open a PR, let CI run, merge. This applies to Claude too — don't push straight to `main` just because the rule can be bypassed.
+
 ## Secrets
 
 Never commit a real token. `.env`, `.dev.vars`, and `.dev.vars.*` are gitignored on purpose — if you're about to put a real secret value in a tracked file, stop.
