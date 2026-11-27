@@ -58,7 +58,7 @@ Discord requires a public HTTPS URL to save an Interactions Endpoint URL and to 
 
 ```bash
 cd discord-interactions
-wrangler dev
+wrangler dev --env staging
 # in another terminal:
 cloudflared tunnel --url http://localhost:8787
 ```
@@ -69,7 +69,7 @@ cloudflared tunnel --url http://localhost:8787
 DISCORD_BOT_TOKEN=...
 ```
 
-(`DISCORD_PUBLIC_KEY` can stay in `wrangler.toml`'s `[vars]` — point it at your **test** application's key.)
+(`DISCORD_PUBLIC_KEY` for the `staging` environment already lives in `wrangler.toml`'s `[env.staging.vars]` — point it at your **test** application's key.)
 
 In the Discord Developer Portal for the test application: set the Interactions Endpoint URL to `<tunnel-url>/interactions` (Discord PINGs it immediately — the Worker must answer `{"type": 1}` or the save fails), and invite the bot with `bot` + `Manage Roles` (no `applications.commands` scope needed — there's no slash command). Discord enforces role hierarchy: the bot's own role must sit **above** every role it's asked to grant or revoke.
 
@@ -80,10 +80,16 @@ Create a few zero-permission, non-managed test roles, then post and pin the sele
 - Giving yourself an unrelated role first, then submitting a selection that excludes it, leaves that unrelated role untouched — the one check that most directly stands in for the missing integration test on `diff_roles`'s "only touch offered roles" guarantee.
 - Garbled/missing signature headers → `401`. Malformed but well-signed JSON → `400`.
 
+## Staging vs. production
+
+`discord-interactions` deploys as two separate Workers (`wrangler.toml`'s `[env.staging]`/`[env.production]`), each pointing at its own Discord application — a Discord app's Interactions Endpoint URL can only target one Worker, so test and production need separate applications (separate `DISCORD_PUBLIC_KEY`, separate `DISCORD_BOT_TOKEN` set with `wrangler secret put DISCORD_BOT_TOKEN --env staging` / `--env production`). CI deploys both on every push to `main`.
+
+`reddit-interactions` doesn't need the same split: it only ever calls Discord's REST API outbound (no endpoint URL to collide), and it already isolates test from production per-install via the subreddit-scoped `discordGuildId`/`discordChannelId` settings. The one Devvit-secret `discordBotToken` is global to the app (Devvit only allows secrets at app scope, not per-install) — the same bot, invited to both your test and production Discord servers, is the supported setup. Use a separate bot there too only if you want the extra isolation; nothing in the app enforces or requires it.
+
 ## Before deploying to production
 
 - [ ] Both CI jobs are green on the branch being deployed.
-- [ ] `wrangler.toml`'s `DISCORD_PUBLIC_KEY` and the `DISCORD_BOT_TOKEN` secret belong to the **production** Discord application.
+- [ ] `wrangler.toml`'s `[env.production]` vars and the `DISCORD_BOT_TOKEN` secret (`wrangler secret put DISCORD_BOT_TOKEN --env production`) belong to the **production** Discord application.
 - [ ] The pinned select-menu message is posted and pinned in the **production** announcement channel.
 - [ ] The production bot's role is invited and positioned **above** every role it will manage.
 - [ ] `discordGuildId`/`discordChannelId` are configured for the production subreddit install, and the announcement channel is Announcement-type if auto-publish is wanted.

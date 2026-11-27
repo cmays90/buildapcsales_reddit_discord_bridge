@@ -5,11 +5,29 @@ compatibility_date = "2026-11-27"
 [build]
 command = "cargo install -q worker-build && worker-build --release"
 
-[vars]
-# Not sensitive (it's public by definition) - the Discord application's
+# Two environments, two Discord applications: a Discord app's Interactions
+# Endpoint URL can only point at one Worker, so test and production each
+# need their own application (and therefore their own public key) to point
+# at their own Worker. Every deploy must pick one with `--env` - there is
+# no top-level [vars]/DISCORD_PUBLIC_KEY, so a deploy that omits --env fails
+# fast instead of silently landing on the wrong environment.
+#
+# Secret (not set here - `wrangler secret put DISCORD_BOT_TOKEN --env <env>`):
+#   DISCORD_BOT_TOKEN - bot token, used to call Discord's REST API. Can be
+#   the same bot for both environments (see docs/testing.md) or a separate
+#   test bot - either way it's set per environment.
+
+[env.staging]
+name = "discord-interactions-staging"
+
+[env.staging.vars]
+# Not sensitive (it's public by definition). The test Discord application's
 # public key, used to verify the Ed25519 signature on every interaction.
-# Fill in once the Discord application exists.
 DISCORD_PUBLIC_KEY = ""
 
-# Secret (set with `wrangler secret put DISCORD_BOT_TOKEN`):
-#   DISCORD_BOT_TOKEN - bot token, used to call Discord's REST API
+[env.production]
+name = "discord-interactions"
+
+[env.production.vars]
+# The production Discord application's public key.
+DISCORD_PUBLIC_KEY = ""
