@@ -48,5 +48,8 @@
   },
   "scripts": {
     "dev": "npm run watch"
+  },
+  "dev": {
+    "subreddit": "bapcs_bridge_dev"
   }
 }

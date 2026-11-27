@@ -2,6 +2,7 @@ import {reddit} from '@devvit/web/server'
 import {
   CATCH_ALL_ROLE_NAME,
   createPickerMessage,
+  discordRoleNameForFlair,
   ensureRoleId,
   getPickerState,
   type PickerOption,
@@ -79,12 +80,17 @@ export async function syncFlairRoles(opts: {
       templates.map(t => t.text).filter((text): text is string => !!text),
     ),
   ]
-  const desiredNames = [CATCH_ALL_ROLE_NAME, ...flairNames]
-
-  const desiredOptions = await Promise.all(
-    desiredNames.map(async name => ({
+  const desired = [
+    {label: CATCH_ALL_ROLE_NAME, roleName: CATCH_ALL_ROLE_NAME},
+    ...flairNames.map(name => ({
       label: name,
-      value: await ensureRoleId(guildId, botToken, name),
+      roleName: discordRoleNameForFlair(name),
+    })),
+  ]
+  const desiredOptions = await Promise.all(
+    desired.map(async ({label, roleName}) => ({
+      label,
+      value: await ensureRoleId(guildId, botToken, roleName),
     })),
   )
 
