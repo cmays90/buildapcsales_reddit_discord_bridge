@@ -2,7 +2,7 @@
 
 Connects r/buildapcsales to its Discord server: new subreddit posts become Discord announcements, and members choose which categories of posts ping them.
 
-See [docs/product-spec.md](docs/product-spec.md) for what it does, [docs/architecture.md](docs/architecture.md) for how the two pieces fit together, [docs/tech-stack.md](docs/tech-stack.md) for the concrete implementation choices, and [docs/testing.md](docs/testing.md) for how to verify any of it actually works.
+See [docs/product-spec.md](docs/product-spec.md) for what it does, [docs/architecture.md](docs/architecture.md) for how the two pieces fit together, [docs/tech-stack.md](docs/tech-stack.md) for the concrete implementation choices, and [docs/testing.md](docs/testing.md) for how to verify any of it actually works. [docs/privacy-policy.md](docs/privacy-policy.md) and [docs/terms-of-service.md](docs/terms-of-service.md) cover what the running app does with data, required by Reddit's Developer Platform since the app uses the `http` permission.
 
 ## Repo layout
 
