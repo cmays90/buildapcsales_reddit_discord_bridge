@@ -16,7 +16,8 @@
   "permissions": {
     "http": {
       "domains": ["discord.com"]
-    }
+    },
+    "redis": true
   },
   "settings": {
     "global": {
@@ -41,12 +42,7 @@
       "discordPickerChannelId": {
         "type": "string",
         "label": "Discord role-picker channel ID",
-        "helpText": "The channel containing the pinned self-service role-picker message."
-      },
-      "discordPickerMessageId": {
-        "type": "string",
-        "label": "Discord role-picker message ID",
-        "helpText": "The ID of the pinned role-picker message. Its select-menu options are kept in sync with this subreddit's current post flairs automatically."
+        "helpText": "The channel where the bot posts and pins its self-service role-picker message. The bot creates the message itself on first sync (and recreates it if deleted), keeping its select-menu options in sync with this subreddit's current post flairs automatically."
       }
     }
   },

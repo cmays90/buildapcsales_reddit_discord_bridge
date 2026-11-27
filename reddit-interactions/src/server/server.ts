@@ -1,12 +1,15 @@
 import {once} from 'node:events'
 import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {OnPostSubmitRequest, TriggerResponse} from '@devvit/shared'
-import {context, settings} from '@devvit/web/server'
+import {context, redis, settings} from '@devvit/web/server'
 import {postAnnouncement} from './discord.ts'
 import {syncFlairRoles} from './roleSync.ts'
 
 type ErrorRsp = {error: string; status: number}
 type AnyRsp = TriggerResponse | ErrorRsp
+
+/** Redis key (per-install scoped) holding the bot-created picker message id. */
+const PICKER_MESSAGE_ID_KEY = 'discordPickerMessageId'
 
 export async function onReq(
   reqMsg: IncomingMessage,
@@ -77,14 +80,12 @@ async function routePostSubmit(
 }
 
 async function routeSyncFlairRoles(): Promise<TriggerResponse> {
-  const [botToken, guildId, pickerChannelId, pickerMessageId] =
-    await Promise.all([
-      settings.get<string>('discordBotToken'),
-      settings.get<string>('discordGuildId'),
-      settings.get<string>('discordPickerChannelId'),
-      settings.get<string>('discordPickerMessageId'),
-    ])
-  if (!botToken || !guildId || !pickerChannelId || !pickerMessageId) {
+  const [botToken, guildId, pickerChannelId] = await Promise.all([
+    settings.get<string>('discordBotToken'),
+    settings.get<string>('discordGuildId'),
+    settings.get<string>('discordPickerChannelId'),
+  ])
+  if (!botToken || !guildId || !pickerChannelId) {
     console.warn(
       'reddit-interactions role picker is not configured for this subreddit; skipping flair role sync',
     )
@@ -92,13 +93,17 @@ async function routeSyncFlairRoles(): Promise<TriggerResponse> {
   }
 
   try {
-    await syncFlairRoles({
+    const storedMessageId = await redis.get(PICKER_MESSAGE_ID_KEY)
+    const {pickerMessageId} = await syncFlairRoles({
       subredditName: context.subredditName,
       guildId,
       pickerChannelId,
-      pickerMessageId,
+      pickerMessageId: storedMessageId,
       botToken,
     })
+    if (pickerMessageId !== storedMessageId) {
+      await redis.set(PICKER_MESSAGE_ID_KEY, pickerMessageId)
+    }
   } catch (err) {
     console.error(
       `failed to sync flair roles for ${context.subredditName}; ${err instanceof Error ? err.stack : err}`,

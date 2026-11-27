@@ -8,6 +8,17 @@ export const CATCH_ALL_ROLE_NAME = 'All Posts'
  */
 export const NOTIFY_CUSTOM_ID = 'notify-roles'
 
+/**
+ * The server banner shown on the role-picker message. Hardcoded rather than
+ * fetched fresh from the guild each time - it's decoration, not something
+ * that needs to stay live if the banner changes.
+ */
+const PICKER_BANNER_URL =
+  'https://cdn.discordapp.com/banners/779510278114377738/67c2444b89c5febca0029ecc5651b18d.webp?size=480'
+
+const PICKER_EMBED_DESCRIPTION =
+  'Add or remove roles for buildapcsales channel alerts. Adding a role means you will be pinged anytime a new post with that flair is made on the sub.'
+
 export type AnnouncementPost = {
   title: string
   /** Relative Reddit permalink, e.g. "/r/sub/comments/abc123/title/". */
@@ -20,6 +31,14 @@ export type AnnouncementPost = {
 
 export type PickerOption = {label: string; value: string}
 
+export class DiscordApiError extends Error {
+  readonly status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
 type DiscordRole = {id: string; name: string}
 type DiscordMessage = {id: string}
 
@@ -28,6 +47,8 @@ type DiscordComponent = {
   custom_id?: string
   options?: PickerOption[]
   placeholder?: string
+  min_values?: number
+  max_values?: number
   components?: DiscordComponent[]
 }
 type DiscordMessageDetail = {components?: DiscordComponent[]}
@@ -132,16 +153,59 @@ export async function postAnnouncement(
   }
 }
 
-/** Reads the role-picker message's current select-menu options and placeholder. */
+/** Builds the role-picker message's embed: the banner image and explainer text. */
+export function buildPickerEmbed(): {
+  description: string
+  image: {url: string}
+} {
+  return {
+    description: PICKER_EMBED_DESCRIPTION,
+    image: {url: PICKER_BANNER_URL},
+  }
+}
+
+/** Builds the role-picker's single string-select row, shared by create and update. */
+export function buildPickerComponents(
+  options: PickerOption[],
+  placeholder: string | undefined,
+): DiscordComponent[] {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 3,
+          custom_id: NOTIFY_CUSTOM_ID,
+          placeholder,
+          min_values: 0,
+          max_values: options.length,
+          options,
+        },
+      ],
+    },
+  ]
+}
+
+/**
+ * Reads the role-picker message's current select-menu options and
+ * placeholder. Returns `undefined` if the message no longer exists (deleted
+ * out from under the bot), so the caller can recreate it.
+ */
 export async function getPickerState(
   channelId: string,
   messageId: string,
   botToken: string,
-): Promise<PickerState> {
-  const message = await discordFetch<DiscordMessageDetail>(
-    `/channels/${channelId}/messages/${messageId}`,
-    botToken,
-  )
+): Promise<PickerState | undefined> {
+  let message: DiscordMessageDetail
+  try {
+    message = await discordFetch<DiscordMessageDetail>(
+      `/channels/${channelId}/messages/${messageId}`,
+      botToken,
+    )
+  } catch (err) {
+    if (err instanceof DiscordApiError && err.status === 404) return undefined
+    throw err
+  }
   const component = message.components
     ?.flatMap(row => row.components ?? [])
     .find(c => c.custom_id === NOTIFY_CUSTOM_ID)
@@ -162,23 +226,45 @@ export async function updatePickerOptions(
   await discordFetch(`/channels/${channelId}/messages/${messageId}`, botToken, {
     method: 'PATCH',
     body: JSON.stringify({
-      components: [
-        {
-          type: 1,
-          components: [
-            {
-              type: 3,
-              custom_id: NOTIFY_CUSTOM_ID,
-              placeholder,
-              min_values: 0,
-              max_values: options.length,
-              options,
-            },
-          ],
-        },
-      ],
+      components: buildPickerComponents(options, placeholder),
     }),
   })
+}
+
+/** Posts a new role-picker message with the given options, returning its id. */
+export async function createPickerMessage(
+  channelId: string,
+  botToken: string,
+  options: PickerOption[],
+  placeholder: string,
+): Promise<string> {
+  const message = await discordFetch<DiscordMessage>(
+    `/channels/${channelId}/messages`,
+    botToken,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        embeds: [buildPickerEmbed()],
+        components: buildPickerComponents(options, placeholder),
+      }),
+    },
+  )
+  return message.id
+}
+
+/** Pins a message in its channel. */
+export async function pinMessage(
+  channelId: string,
+  messageId: string,
+  botToken: string,
+): Promise<void> {
+  await discordFetch<void>(
+    `/channels/${channelId}/pins/${messageId}`,
+    botToken,
+    {
+      method: 'PUT',
+    },
+  )
 }
 
 async function discordFetch<T>(
@@ -195,9 +281,12 @@ async function discordFetch<T>(
     body: init?.body,
   })
   if (!rsp.ok) {
-    throw new Error(
+    throw new DiscordApiError(
+      rsp.status,
       `Discord API ${init?.method ?? 'GET'} ${path} -> ${rsp.status}: ${await rsp.text()}`,
     )
   }
+  // Pin/unpin return 204 No Content - nothing to parse.
+  if (rsp.status === 204) return undefined as T
   return (await rsp.json()) as T
 }

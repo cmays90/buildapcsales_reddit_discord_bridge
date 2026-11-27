@@ -73,7 +73,7 @@ DISCORD_BOT_TOKEN=...
 
 In the Discord Developer Portal for the test application: set the Interactions Endpoint URL to `<tunnel-url>/interactions` (Discord PINGs it immediately — the Worker must answer `{"type": 1}` or the save fails), and invite the bot with `bot` + `Manage Roles` (no `applications.commands` scope needed — there's no slash command). Discord enforces role hierarchy: the bot's own role must sit **above** every role it's asked to grant or revoke.
 
-Create a few zero-permission, non-managed test roles, then post and pin the select-menu message in the test server so the picker has something to offer, then check:
+Create a few zero-permission, non-managed test roles, then get the picker message posted and pinned so it has something to offer — the normal path is configuring `discordPickerChannelId` and running `reddit-interactions`'s scheduled sync (see below), which creates and pins the message itself. Testing `discord-interactions` in isolation without `reddit-interactions` running still works: post and pin a stand-in message by hand with a string-select component whose `custom_id` is `notify-roles` (see [discord.ts](../reddit-interactions/src/server/discord.ts)'s `NOTIFY_CUSTOM_ID`). Then check:
 
 - The pinned message's select menu lists exactly those roles, catch-all last.
 - Selecting and submitting actually changes your roles, and the confirmation text's counts match.
@@ -90,7 +90,7 @@ Create a few zero-permission, non-managed test roles, then post and pin the sele
 
 - [ ] Both CI jobs are green on the branch being deployed.
 - [ ] `wrangler.toml`'s `[env.production]` vars and the `DISCORD_BOT_TOKEN` secret (`wrangler secret put DISCORD_BOT_TOKEN --env production`) belong to the **production** Discord application.
-- [ ] The pinned select-menu message is posted and pinned in the **production** announcement channel.
 - [ ] The production bot's role is invited and positioned **above** every role it will manage.
-- [ ] `discordGuildId`/`discordChannelId` are configured for the production subreddit install, and the announcement channel is Announcement-type if auto-publish is wanted.
+- [ ] `discordGuildId`/`discordChannelId`/`discordPickerChannelId` are configured for the production subreddit install, and the announcement channel is Announcement-type if auto-publish is wanted.
 - [ ] One real post, end to end, confirmed before calling it done.
+- [ ] The first scheduled sync has run and the picker message shows up, pinned, in the **production** picker channel — confirms Redis permission is enabled and the bot could create/pin it there.

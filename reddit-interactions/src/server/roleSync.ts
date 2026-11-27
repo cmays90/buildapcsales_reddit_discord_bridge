@@ -1,14 +1,19 @@
 import {reddit} from '@devvit/web/server'
 import {
   CATCH_ALL_ROLE_NAME,
+  createPickerMessage,
   ensureRoleId,
   getPickerState,
   type PickerOption,
+  pinMessage,
   updatePickerOptions,
 } from './discord.ts'
 
 /** Discord string-select components cap at 25 options. */
 const MAX_PICKER_OPTIONS = 25
+
+/** Placeholder text for a role-picker message the bot creates itself. */
+const PICKER_PLACEHOLDER = 'Choose notification categories'
 
 /**
  * Caps the option list at Discord's 25-option select-menu limit, keeping the
@@ -53,14 +58,18 @@ export function diffOptions(
  * role-picker message's options in sync with that same set — adding roles
  * for new flairs and pruning options for flairs that no longer exist.
  * Never touches which roles a member already holds.
+ *
+ * If `pickerMessageId` is missing, or points at a message that's been
+ * deleted, a new picker message is created and pinned in its place. Returns
+ * the message id actually used so the caller can persist a newly-created one.
  */
 export async function syncFlairRoles(opts: {
   subredditName: string
   guildId: string
   pickerChannelId: string
-  pickerMessageId: string
+  pickerMessageId: string | undefined
   botToken: string
-}): Promise<void> {
+}): Promise<{pickerMessageId: string}> {
   const {subredditName, guildId, pickerChannelId, pickerMessageId, botToken} =
     opts
 
@@ -86,19 +95,36 @@ export async function syncFlairRoles(opts: {
     )
   }
 
-  const current = await getPickerState(
-    pickerChannelId,
-    pickerMessageId,
-    botToken,
-  )
-  const next = diffOptions(current.options, clamped)
-  if (next) {
-    await updatePickerOptions(
+  if (pickerMessageId) {
+    const current = await getPickerState(
       pickerChannelId,
       pickerMessageId,
       botToken,
-      next,
-      current.placeholder,
+    )
+    if (current) {
+      const next = diffOptions(current.options, clamped)
+      if (next) {
+        await updatePickerOptions(
+          pickerChannelId,
+          pickerMessageId,
+          botToken,
+          next,
+          current.placeholder,
+        )
+      }
+      return {pickerMessageId}
+    }
+    console.warn(
+      `${subredditName}'s role-picker message ${pickerMessageId} is gone; creating a new one`,
     )
   }
+
+  const newMessageId = await createPickerMessage(
+    pickerChannelId,
+    botToken,
+    clamped,
+    PICKER_PLACEHOLDER,
+  )
+  await pinMessage(pickerChannelId, newMessageId, botToken)
+  return {pickerMessageId: newMessageId}
 }
