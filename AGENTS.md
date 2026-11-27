@@ -37,6 +37,8 @@ Per [docs/testing.md](docs/testing.md): new logic needs a unit test; the code pa
 
 Don't hand-format or write a style guide — Biome and `cargo fmt`/`cargo clippy` are it, and CI enforces them. If a formatter and your own judgment disagree, run the formatter.
 
+Never silence a lint instead of fixing what it's pointing at. `#[allow(dead_code)]` (or `#[expect(dead_code)]`, `biome-ignore`, etc.) on logic with no caller is a sign the code isn't ready to land, not a reason to suppress the warning — delete it and re-add it later when something actually calls it.
+
 ## Conventions to preserve
 
 - No shared library between the two packages, even though both call Discord's REST API. Deliberate — see tech-stack.md. Don't add one to deduplicate a few dozen lines.

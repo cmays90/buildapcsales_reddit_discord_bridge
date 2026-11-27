@@ -2,34 +2,9 @@
 //! module compiles and runs under plain `cargo test` on the host target.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub const NOTIFY_CUSTOM_ID: &str = "notify-roles";
-
-// `CATCH_ALL_ROLE_NAME`, `Role`, `SelectOption`, `is_notification_role` and
-// `notify_options` below build the pinned select-menu message's content from
-// live guild roles. Nothing in this Worker posts or refreshes that message
-// yet — see the pinned-message checklist item in docs/testing.md — so these
-// are exercised by tests only for now, not dead by mistake.
-#[allow(dead_code)]
-pub const CATCH_ALL_ROLE_NAME: &str = "All Posts";
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-pub struct Role {
-    pub id: String,
-    pub name: String,
-    pub permissions: String,
-    #[serde(default)]
-    pub managed: bool,
-}
-
-#[derive(Debug, Serialize, PartialEq, Eq)]
-#[allow(dead_code)]
-pub struct SelectOption {
-    pub label: String,
-    pub value: String,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct Interaction {
@@ -118,45 +93,6 @@ pub fn verify_signature(
     verifying_key.verify(&message, &signature).is_ok()
 }
 
-/// A role is treated as one of ours if it carries no permissions and isn't
-/// Discord-managed (a bot's own role, a boost role, etc.) — the roles this
-/// app creates are always plain, zero-permission, mentionable roles.
-#[allow(dead_code)]
-pub fn is_notification_role(role: &Role) -> bool {
-    !role.managed && role.permissions == "0"
-}
-
-/// Builds the select menu's options from the guild's current roles, with the
-/// catch-all role always last.
-#[allow(dead_code)]
-pub fn notify_options(roles: &[Role]) -> Vec<SelectOption> {
-    let mut flair_roles: Vec<&Role> = roles
-        .iter()
-        .filter(|r| is_notification_role(r) && r.name != CATCH_ALL_ROLE_NAME)
-        .collect();
-    flair_roles.sort_by(|a, b| a.name.cmp(&b.name));
-
-    let mut options: Vec<SelectOption> = flair_roles
-        .into_iter()
-        .map(|r| SelectOption {
-            label: r.name.clone(),
-            value: r.id.clone(),
-        })
-        .collect();
-
-    if let Some(catch_all) = roles
-        .iter()
-        .find(|r| is_notification_role(r) && r.name == CATCH_ALL_ROLE_NAME)
-    {
-        options.push(SelectOption {
-            label: catch_all.name.clone(),
-            value: catch_all.id.clone(),
-        });
-    }
-
-    options
-}
-
 /// The full set of role ids a select component offered, read back from the
 /// original message — Discord's submit payload only carries what was
 /// *selected*, not what was on offer, so this is how we learn what to clear.
@@ -194,15 +130,6 @@ pub fn diff_roles(
 mod tests {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};
-
-    fn role(id: &str, name: &str, permissions: &str, managed: bool) -> Role {
-        Role {
-            id: id.to_string(),
-            name: name.to_string(),
-            permissions: permissions.to_string(),
-            managed,
-        }
-    }
 
     #[test]
     fn verifies_a_genuine_signature() {
@@ -246,37 +173,6 @@ mod tests {
             "1700000000",
             "{}"
         ));
-    }
-
-    #[test]
-    fn notify_options_filters_to_plain_roles_and_puts_catch_all_last() {
-        let roles = vec![
-            role("1", "Moderator", "8", false),
-            role("2", "GPUs", "0", false),
-            role("3", "All Posts", "0", false),
-            role("4", "Bots", "0", true),
-            role("5", "Deals", "0", false),
-        ];
-
-        let options = notify_options(&roles);
-
-        assert_eq!(
-            options,
-            vec![
-                SelectOption {
-                    label: "Deals".into(),
-                    value: "5".into()
-                },
-                SelectOption {
-                    label: "GPUs".into(),
-                    value: "2".into()
-                },
-                SelectOption {
-                    label: "All Posts".into(),
-                    value: "3".into()
-                },
-            ]
-        );
     }
 
     #[test]
