@@ -1,6 +1,6 @@
 # Architecture
 
-Two independent, stateless components talk to Discord's REST API; nothing but Discord's own guild roles holds the flair-to-notification mapping, so there's no database to run or keep in sync.
+Two independent, stateless components talk to Discord's REST API; nothing but Discord's own guild roles holds the flair-to-notification mapping, so there's no database to run or keep in sync. The one piece of app state — the role-picker message's id — lives in Devvit's built-in per-install Redis, not a database of our own.
 
 ```mermaid
 flowchart TB
@@ -20,6 +20,7 @@ Reading note: a new post or a flair change on the subreddit drives the Devvit ap
 - Calls Discord's bot REST API over fetch (Devvit apps may make outbound HTTP to domains declared in `devvit.json`) to post the rich embed, crosspost it in the announcement channel, and create a role when a new flair appears.
 - Looks up the Discord role ID to mention by querying the guild's current roles for a name match to the post's flair — no stored mapping to go stale.
 - The scheduled job lists the subreddit's current flair templates (there's no Reddit event for "a flair template changed," so this has to be a poll), ensures a role exists for each one, and PATCHes the pinned role-picker message's select-menu options to match — adding options for new flairs and pruning options for flairs that no longer exist. It never touches which roles a member already holds.
+- The role-picker message itself is created and pinned by the app, not a moderator: the job reads the message id it last stored in Redis, and if there isn't one yet — or the stored message has been deleted — it posts and pins a new one in `discordPickerChannelId` and stores its id for next time.
 - Holds the bot token as a Devvit secret.
 
 ### Interactions endpoint (Discord to member)
@@ -35,7 +36,8 @@ Reading note: a new post or a flair change on the subreddit drives the Devvit ap
 | --- | --- | --- |
 | Where the Interactions endpoint runs | Cloudflare Worker | Free tier, reliable, and fits the no-persistent-connection shape — confirmed over self-hosting on the VPS. |
 | Self-service UX | A pinned select-menu message | No command to discover, and one message holds every flair role. |
-| Keeping the picker's options in sync | Devvit app polls Reddit's flair-template list every 15 minutes and PATCHes the message | No Reddit event fires on flair-template changes; the message itself (located via the `discordPickerChannelId`/`discordPickerMessageId` settings) is the only thing that needs to stay current, so no extra storage is needed. |
+| Keeping the picker's options in sync | Devvit app polls Reddit's flair-template list every 15 minutes and PATCHes the message | No Reddit event fires on flair-template changes; the message itself is the only thing that needs to stay current. |
+| Who creates/owns the picker message | The Devvit app creates and pins it itself, keyed off a message id it persists in per-install Redis (recreating it if the message is deleted) | A moderator only has to pick a channel (`discordPickerChannelId`) — no manual API call to hand-craft the message with the right `custom_id`, and no message id to copy into settings. |
 | Catch-all role delivery | Opt in explicitly, same as any flair role | Per spec: never pre-granted. |
 
 See [Tech stack](tech-stack.md) for the concrete implementation choices (languages, libraries, CI).

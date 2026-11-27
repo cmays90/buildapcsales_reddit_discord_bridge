@@ -23,11 +23,11 @@ name = "discord-interactions-staging"
 [env.staging.vars]
 # Not sensitive (it's public by definition). The test Discord application's
 # public key, used to verify the Ed25519 signature on every interaction.
-DISCORD_PUBLIC_KEY = ""
+DISCORD_PUBLIC_KEY = "728a36e4d2734a89ad17532dfbd2470848fb5bf99ca02c88079a0fc633a96a77"
 
 [env.production]
 name = "discord-interactions"
 
 [env.production.vars]
 # The production Discord application's public key.
-DISCORD_PUBLIC_KEY = ""
+DISCORD_PUBLIC_KEY = "6d929a84cea459eca2e817661889334b54c34b4ccd11922527865c209c332b7b"
