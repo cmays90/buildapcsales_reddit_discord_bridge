@@ -28,7 +28,7 @@ What each side needs before its first feature can meet the DoD:
 
 - **A fake Discord REST API.** `discord.ts`'s `ensureRoleId`/`postAnnouncement` and `lib.rs`'s `discord_*` helpers call `https://discord.com/api/v10` directly today. Point them at a local double instead (`wiremock` on the Rust side; `msw` or a hand-rolled listener on the Node side) so integration tests can assert on the outgoing requests and script the responses, in CI, with no live Discord app involved.
 - **A way to drive `reddit-interactions`'s HTTP route outside the real Devvit platform.** `server.ts` reaches for `settings`/`reddit` from `@devvit/web/server` directly, which only resolve inside `devvit playtest` or a real deployment today. Either use whatever harness Devvit provides for faking those bindings, or restructure `server.ts` to take them as injected arguments so `node --test` can fake them directly.
-- **An E2E shape that doesn't require a human.** Once both components can run against the mock Discord API, the E2E flow (post → role created → `/notify` → role toggled → pinged) can run the same way, scripted, in CI.
+- **An E2E shape that doesn't require a human.** Once both components can run against the mock Discord API, the E2E flow (post → role created → member opens the pinned select-menu message → role toggled → pinged) can run the same way, scripted, in CI.
 
 The first feature built on this scaffolding should include whichever of these its own tests need — not all three at once, speculatively, but whatever that feature's DoD requires.
 
@@ -71,11 +71,11 @@ DISCORD_BOT_TOKEN=...
 
 (`DISCORD_PUBLIC_KEY` can stay in `wrangler.toml`'s `[vars]` — point it at your **test** application's key.)
 
-In the Discord Developer Portal for the test application: set the Interactions Endpoint URL to `<tunnel-url>/interactions` (Discord PINGs it immediately — the Worker must answer `{"type": 1}` or the save fails), register `/notify`, and invite the bot with `applications.commands` + `bot` + `Manage Roles`. Discord enforces role hierarchy: the bot's own role must sit **above** every role it's asked to grant or revoke.
+In the Discord Developer Portal for the test application: set the Interactions Endpoint URL to `<tunnel-url>/interactions` (Discord PINGs it immediately — the Worker must answer `{"type": 1}` or the save fails), and invite the bot with `bot` + `Manage Roles` (no `applications.commands` scope needed — there's no slash command). Discord enforces role hierarchy: the bot's own role must sit **above** every role it's asked to grant or revoke.
 
-Create a few zero-permission, non-managed test roles so `/notify` has something to offer, then check:
+Create a few zero-permission, non-managed test roles, then post and pin the select-menu message in the test server so the picker has something to offer, then check:
 
-- `/notify` lists exactly those roles, catch-all last.
+- The pinned message's select menu lists exactly those roles, catch-all last.
 - Selecting and submitting actually changes your roles, and the confirmation text's counts match.
 - Giving yourself an unrelated role first, then submitting a selection that excludes it, leaves that unrelated role untouched — the one check that most directly stands in for the missing integration test on `diff_roles`'s "only touch offered roles" guarantee.
 - Garbled/missing signature headers → `401`. Malformed but well-signed JSON → `400`.
@@ -84,7 +84,7 @@ Create a few zero-permission, non-managed test roles so `/notify` has something 
 
 - [ ] Both CI jobs are green on the branch being deployed.
 - [ ] `wrangler.toml`'s `DISCORD_PUBLIC_KEY` and the `DISCORD_BOT_TOKEN` secret belong to the **production** Discord application.
-- [ ] `/notify` is registered against the **production** application id.
+- [ ] The pinned select-menu message is posted and pinned in the **production** announcement channel.
 - [ ] The production bot's role is invited and positioned **above** every role it will manage.
 - [ ] `discordGuildId`/`discordChannelId` are configured for the production subreddit install, and the announcement channel is Announcement-type if auto-publish is wanted.
 - [ ] One real post, end to end, confirmed before calling it done.

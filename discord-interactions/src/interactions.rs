@@ -5,9 +5,17 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 pub const NOTIFY_CUSTOM_ID: &str = "notify-roles";
+
+// `CATCH_ALL_ROLE_NAME`, `Role`, `SelectOption`, `is_notification_role` and
+// `notify_options` below build the pinned select-menu message's content from
+// live guild roles. Nothing in this Worker posts or refreshes that message
+// yet — see the pinned-message checklist item in docs/testing.md — so these
+// are exercised by tests only for now, not dead by mistake.
+#[allow(dead_code)]
 pub const CATCH_ALL_ROLE_NAME: &str = "All Posts";
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct Role {
     pub id: String,
     pub name: String,
@@ -17,6 +25,7 @@ pub struct Role {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct SelectOption {
     pub label: String,
     pub value: String,
@@ -78,7 +87,6 @@ pub struct ComponentOption {
 }
 
 pub const PING: u8 = 1;
-pub const APPLICATION_COMMAND: u8 = 2;
 pub const MESSAGE_COMPONENT: u8 = 3;
 
 /// Verifies Discord's Ed25519 request signature over `timestamp + body`.
@@ -113,12 +121,14 @@ pub fn verify_signature(
 /// A role is treated as one of ours if it carries no permissions and isn't
 /// Discord-managed (a bot's own role, a boost role, etc.) — the roles this
 /// app creates are always plain, zero-permission, mentionable roles.
+#[allow(dead_code)]
 pub fn is_notification_role(role: &Role) -> bool {
     !role.managed && role.permissions == "0"
 }
 
 /// Builds the select menu's options from the guild's current roles, with the
 /// catch-all role always last.
+#[allow(dead_code)]
 pub fn notify_options(roles: &[Role]) -> Vec<SelectOption> {
     let mut flair_roles: Vec<&Role> = roles
         .iter()

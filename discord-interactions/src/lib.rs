@@ -10,7 +10,6 @@ mod interactions;
 // plain `cargo test` — see interactions.rs for what is.
 #[cfg(target_arch = "wasm32")]
 mod worker_glue {
-    use serde::de::DeserializeOwned;
     use serde_json::json;
     use worker::wasm_bindgen::JsValue;
     use worker::{
@@ -18,8 +17,8 @@ mod worker_glue {
     };
 
     use crate::interactions::{
-        APPLICATION_COMMAND, Interaction, MESSAGE_COMPONENT, NOTIFY_CUSTOM_ID, PING, Role,
-        diff_roles, notify_options, offered_role_ids, verify_signature,
+        Interaction, MESSAGE_COMPONENT, NOTIFY_CUSTOM_ID, PING, diff_roles, offered_role_ids,
+        verify_signature,
     };
 
     const DISCORD_API: &str = "https://discord.com/api/v10";
@@ -51,54 +50,9 @@ mod worker_glue {
 
         match interaction.kind {
             PING => Response::from_json(&json!({"type": 1})),
-            APPLICATION_COMMAND => handle_notify_command(&env, &interaction).await,
             MESSAGE_COMPONENT => handle_component(&env, &interaction).await,
             _ => Response::error("unsupported interaction type", 400),
         }
-    }
-
-    async fn handle_notify_command(env: &Env, interaction: &Interaction) -> Result<Response> {
-        let Some(guild_id) = &interaction.guild_id else {
-            return Response::error("this only works in a server", 400);
-        };
-
-        let bot_token = env.secret("DISCORD_BOT_TOKEN")?.to_string();
-        let roles: Vec<Role> = discord_json(
-            &format!("/guilds/{guild_id}/roles"),
-            Method::Get,
-            &bot_token,
-            None,
-        )
-        .await?;
-        let options = notify_options(&roles);
-
-        if options.is_empty() {
-            return Response::from_json(&json!({
-                "type": 4,
-                "data": {
-                    "flags": 64,
-                    "content": "No notification categories yet — check back after the first post.",
-                }
-            }));
-        }
-
-        Response::from_json(&json!({
-            "type": 4,
-            "data": {
-                "flags": 64,
-                "content": "Pick the categories you want pinged for:",
-                "components": [{
-                    "type": 1,
-                    "components": [{
-                        "type": 3,
-                        "custom_id": NOTIFY_CUSTOM_ID,
-                        "min_values": 0,
-                        "max_values": options.len(),
-                        "options": options,
-                    }],
-                }],
-            }
-        }))
     }
 
     async fn handle_component(env: &Env, interaction: &Interaction) -> Result<Response> {
@@ -171,18 +125,6 @@ mod worker_glue {
             )));
         }
         Ok(resp)
-    }
-
-    async fn discord_json<T: DeserializeOwned>(
-        path: &str,
-        method: Method,
-        bot_token: &str,
-        body: Option<String>,
-    ) -> Result<T> {
-        discord_call(path, method, bot_token, body)
-            .await?
-            .json()
-            .await
     }
 
     async fn discord_empty(path: &str, method: Method, bot_token: &str) -> Result<()> {

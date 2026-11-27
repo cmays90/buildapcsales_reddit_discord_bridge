@@ -52,7 +52,7 @@ CI (`.github/workflows/ci.yml`) lints, typechecks, and tests both packages on ev
 - **discord-interactions** deploys automatically via `wrangler deploy`, authenticated with a `CLOUDFLARE_API_TOKEN` repository secret. Secrets it needs at runtime: `DISCORD_BOT_TOKEN` (`wrangler secret put DISCORD_BOT_TOKEN`) and `DISCORD_PUBLIC_KEY` (plain var in `wrangler.toml`).
 - **reddit-interactions** is not yet auto-published — whether `devvit publish` supports non-interactive CI auth is still unconfirmed. Until then, publish by hand with `npm run publish --workspace=reddit-interactions`. It needs the Devvit app's own settings configured per subreddit install: `discordBotToken` (global secret), `discordGuildId`, and `discordChannelId` (per-subreddit settings).
 
-Both sides need a Discord bot application with: a bot token, the application's public key, a `/notify` slash command registered, and the bot invited to the target server with `Manage Roles`.
+Both sides need a Discord bot application with: a bot token, the application's public key, the pinned select-menu message posted in the server (no slash command to register — see [docs/architecture.md](docs/architecture.md)), and the bot invited to the target server with `Manage Roles`.
 
 ## License
 
