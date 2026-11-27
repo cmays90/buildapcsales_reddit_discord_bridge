@@ -6,7 +6,7 @@ See [docs/product-spec.md](docs/product-spec.md) for what it does, [docs/archite
 
 ## Repo layout
 
-- [`reddit-interactions/`](reddit-interactions) — Devvit app (Node/TypeScript). Posts the announcement embed on every new subreddit post and lazily creates the matching Discord role.
+- [`reddit-interactions/`](reddit-interactions) — Devvit app (Node/TypeScript). Posts the announcement embed on every new subreddit post, creates the matching Discord role, and runs a scheduled job every 15 minutes to keep the self-service picker's options in sync with the subreddit's current flairs.
 - [`discord-interactions/`](discord-interactions) — Cloudflare Worker (Rust). Handles the self-service role picker via Discord's Interactions webhook.
 
 Nothing is shared between them — not even the language — on purpose; see [docs/tech-stack.md](docs/tech-stack.md) for why.
@@ -50,9 +50,9 @@ worker-build --release
 CI (`.github/workflows/ci.yml`) lints, typechecks, and tests both packages on every push to `main`.
 
 - **discord-interactions** deploys automatically to two Worker environments, `staging` and `production` (`wrangler deploy --env <env>`, see `wrangler.toml`), authenticated with a single `CLOUDFLARE_API_TOKEN` repository secret. Each environment needs its own Discord application (a Discord app's Interactions Endpoint URL can only point at one Worker) and so its own `DISCORD_BOT_TOKEN` (`wrangler secret put DISCORD_BOT_TOKEN --env staging`/`--env production`) and `DISCORD_PUBLIC_KEY` (plain var in `wrangler.toml`'s `[env.staging.vars]`/`[env.production.vars]`).
-- **reddit-interactions** is not yet auto-published — whether `devvit publish` supports non-interactive CI auth is still unconfirmed. Until then, publish by hand with `npm run publish --workspace=reddit-interactions`. It needs the Devvit app's own settings configured per subreddit install: `discordBotToken` (global secret, shared across every install — invite the same bot to both your test and production Discord servers), `discordGuildId`, and `discordChannelId` (per-subreddit settings, which is what actually separates a test install from the production one).
+- **reddit-interactions** is not yet auto-published — whether `devvit publish` supports non-interactive CI auth is still unconfirmed. Until then, publish by hand with `npm run publish --workspace=reddit-interactions`. It needs the Devvit app's own settings configured per subreddit install: `discordBotToken` (global secret, shared across every install — invite the same bot to both your test and production Discord servers), `discordGuildId`, `discordChannelId`, and `discordPickerChannelId`/`discordPickerMessageId` (all per-subreddit settings; the picker channel/message IDs are what actually separates a test install from the production one, same as the announcement channel).
 
-Both sides need a Discord bot application with: a bot token, the application's public key, the pinned select-menu message posted in the server (no slash command to register — see [docs/architecture.md](docs/architecture.md)), and the bot invited to the target server with `Manage Roles`.
+Both sides need a Discord bot application with: a bot token, the application's public key, the pinned select-menu message posted in the server (no slash command to register — see [docs/architecture.md](docs/architecture.md); its channel and message ID then get recorded in `discordPickerChannelId`/`discordPickerMessageId` so the scheduled job can keep its options current), and the bot invited to the target server with `Manage Roles`.
 
 ## License
 

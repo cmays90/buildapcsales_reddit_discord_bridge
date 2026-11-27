@@ -1,5 +1,12 @@
 const API_BASE = 'https://discord.com/api/v10'
-const CATCH_ALL_ROLE_NAME = 'All Posts'
+export const CATCH_ALL_ROLE_NAME = 'All Posts'
+
+/**
+ * The role-picker select menu's custom_id. Duplicated from the identical
+ * constant in discord-interactions/src/interactions.rs — the two sides
+ * never share code, per docs/tech-stack.md, so keep them in sync by hand.
+ */
+export const NOTIFY_CUSTOM_ID = 'notify-roles'
 
 export type AnnouncementPost = {
   title: string
@@ -11,8 +18,24 @@ export type AnnouncementPost = {
   authorName: string
 }
 
+export type PickerOption = {label: string; value: string}
+
 type DiscordRole = {id: string; name: string}
 type DiscordMessage = {id: string}
+
+type DiscordComponent = {
+  type: number
+  custom_id?: string
+  options?: PickerOption[]
+  placeholder?: string
+  components?: DiscordComponent[]
+}
+type DiscordMessageDetail = {components?: DiscordComponent[]}
+
+export type PickerState = {
+  options: PickerOption[]
+  placeholder: string | undefined
+}
 
 /** Reads the flair's Discord role, creating it if this is the flair's first post. */
 export async function ensureRoleId(
@@ -107,6 +130,55 @@ export async function postAnnouncement(
       `crosspost failed; ${err instanceof Error ? err.message : err}`,
     )
   }
+}
+
+/** Reads the role-picker message's current select-menu options and placeholder. */
+export async function getPickerState(
+  channelId: string,
+  messageId: string,
+  botToken: string,
+): Promise<PickerState> {
+  const message = await discordFetch<DiscordMessageDetail>(
+    `/channels/${channelId}/messages/${messageId}`,
+    botToken,
+  )
+  const component = message.components
+    ?.flatMap(row => row.components ?? [])
+    .find(c => c.custom_id === NOTIFY_CUSTOM_ID)
+  return {
+    options: component?.options ?? [],
+    placeholder: component?.placeholder,
+  }
+}
+
+/** Replaces the role-picker message's select-menu options, keeping its placeholder. */
+export async function updatePickerOptions(
+  channelId: string,
+  messageId: string,
+  botToken: string,
+  options: PickerOption[],
+  placeholder: string | undefined,
+): Promise<void> {
+  await discordFetch(`/channels/${channelId}/messages/${messageId}`, botToken, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              custom_id: NOTIFY_CUSTOM_ID,
+              placeholder,
+              min_values: 0,
+              max_values: options.length,
+              options,
+            },
+          ],
+        },
+      ],
+    }),
+  })
 }
 
 async function discordFetch<T>(

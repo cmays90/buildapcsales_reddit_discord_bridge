@@ -1,8 +1,9 @@
 import {once} from 'node:events'
 import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {OnPostSubmitRequest, TriggerResponse} from '@devvit/shared'
-import {settings} from '@devvit/web/server'
+import {context, settings} from '@devvit/web/server'
 import {postAnnouncement} from './discord.ts'
+import {syncFlairRoles} from './roleSync.ts'
 
 type ErrorRsp = {error: string; status: number}
 type AnyRsp = TriggerResponse | ErrorRsp
@@ -27,10 +28,14 @@ async function route(
   const endpoint = reqMsg.url?.slice(1)
 
   let rsp: AnyRsp
-  if (reqMsg.method !== 'POST' || endpoint !== 'internal/on/post/submit') {
+  if (reqMsg.method !== 'POST') {
     rsp = {error: 'not found', status: 404}
-  } else {
+  } else if (endpoint === 'internal/on/post/submit') {
     rsp = await routePostSubmit(reqMsg)
+  } else if (endpoint === 'internal/on/schedule/sync-flair-roles') {
+    rsp = await routeSyncFlairRoles()
+  } else {
+    rsp = {error: 'not found', status: 404}
   }
 
   writeJson<AnyRsp>('status' in rsp ? rsp.status : 200, rsp, rspMsg)
@@ -66,6 +71,37 @@ async function routePostSubmit(
   } catch (err) {
     console.error(
       `failed to announce post ${post.id}; ${err instanceof Error ? err.stack : err}`,
+    )
+  }
+  return {}
+}
+
+async function routeSyncFlairRoles(): Promise<TriggerResponse> {
+  const [botToken, guildId, pickerChannelId, pickerMessageId] =
+    await Promise.all([
+      settings.get<string>('discordBotToken'),
+      settings.get<string>('discordGuildId'),
+      settings.get<string>('discordPickerChannelId'),
+      settings.get<string>('discordPickerMessageId'),
+    ])
+  if (!botToken || !guildId || !pickerChannelId || !pickerMessageId) {
+    console.warn(
+      'reddit-interactions role picker is not configured for this subreddit; skipping flair role sync',
+    )
+    return {}
+  }
+
+  try {
+    await syncFlairRoles({
+      subredditName: context.subredditName,
+      guildId,
+      pickerChannelId,
+      pickerMessageId,
+      botToken,
+    })
+  } catch (err) {
+    console.error(
+      `failed to sync flair roles for ${context.subredditName}; ${err instanceof Error ? err.stack : err}`,
     )
   }
   return {}
