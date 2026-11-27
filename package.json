@@ -8,5 +8,12 @@
   "allowScripts": {
     "esbuild": true,
     "protobufjs": true
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.2"
+  },
+  "scripts": {
+    "prepare": "husky"
   }
 }

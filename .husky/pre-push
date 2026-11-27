@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+
+zero="0000000000000000000000000000000000000000"
+run_reddit=0
+run_discord=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+
+  if [ "$remote_sha" = "$zero" ]; then
+    base=$(git merge-base origin/main "$local_sha" 2>/dev/null || true)
+    [ -z "$base" ] && base="$local_sha^"
+    range="$base..$local_sha"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  files=$(git diff --name-only "$range" 2>/dev/null || true)
+  echo "$files" | grep -q '^reddit-interactions/' && run_reddit=1
+  echo "$files" | grep -q '^discord-interactions/' && run_discord=1
+done
+
+if [ "$run_reddit" = 1 ]; then
+  echo "pre-push: reddit-interactions changed, running full test suite"
+  npm run test --workspace=reddit-interactions || exit 1
+fi
+
+if [ "$run_discord" = 1 ]; then
+  echo "pre-push: discord-interactions changed, running cargo checks"
+  (
+    cd discord-interactions || exit 1
+    cargo clippy --all-targets -- -D warnings &&
+      cargo clippy --target wasm32-unknown-unknown -- -D warnings &&
+      cargo test
+  ) || exit 1
+fi
+
+exit 0

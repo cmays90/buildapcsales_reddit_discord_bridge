@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+set -e
+
+if git diff --cached | grep -qE '^\+(<{7}|={7}|>{7})( |$)'; then
+  echo "pre-commit: staged changes contain unresolved merge conflict markers" >&2
+  exit 1
+fi
+
+blocked=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)\.env(\.|$)|(^|/)\.dev\.vars(\.|$)' || true)
+if [ -n "$blocked" ]; then
+  echo "pre-commit: refusing to commit gitignored secret file(s):" >&2
+  printf '%s\n' "$blocked" >&2
+  exit 1
+fi
+
+npx lint-staged
