@@ -1,0 +1,29 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
+  "files": {"includes": ["**", "!dist/"]},
+  "formatter": {
+    "bracketSpacing": false,
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "javascript": {
+    "formatter": {
+      "arrowParentheses": "asNeeded",
+      "quoteStyle": "single",
+      "semicolons": "asNeeded"
+    }
+  },
+  "linter": {
+    "domains": {"project": "all"},
+    "rules": {
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "recommended": true
+      },
+      "style": {"noInferrableTypes": "off"},
+      "suspicious": {"noImplicitAnyLet": "off"}
+    }
+  },
+  "vcs": {"enabled": true, "clientKind": "git", "useIgnoreFile": true}
+}

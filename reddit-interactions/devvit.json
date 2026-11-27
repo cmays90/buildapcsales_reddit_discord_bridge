@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "reddit-interactions",
+  "server": {},
+  "triggers": {
+    "onPostSubmit": "/internal/on/post/submit"
+  },
+  "permissions": {
+    "http": {
+      "domains": ["discord.com"]
+    }
+  },
+  "settings": {
+    "global": {
+      "discordBotToken": {
+        "type": "string",
+        "label": "Discord bot token",
+        "helpText": "Bot token for the Discord application used to post announcements and manage notification roles.",
+        "isSecret": true
+      }
+    },
+    "subreddit": {
+      "discordGuildId": {
+        "type": "string",
+        "label": "Discord server (guild) ID",
+        "helpText": "The Discord server that receives this subreddit's post announcements."
+      },
+      "discordChannelId": {
+        "type": "string",
+        "label": "Discord announcement channel ID",
+        "helpText": "The channel posts are announced in. Must be an Announcement-type channel for auto-publish to other servers to work."
+      }
+    }
+  },
+  "scripts": {
+    "dev": "npm run watch"
+  }
+}

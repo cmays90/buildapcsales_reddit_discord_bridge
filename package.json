@@ -1,0 +1,11 @@
+{
+  "name": "bapcs-discord-reddit-bridge",
+  "private": true,
+  "workspaces": [
+    "reddit-interactions"
+  ],
+  "allowScripts": {
+    "esbuild": true,
+    "protobufjs": true
+  }
+}

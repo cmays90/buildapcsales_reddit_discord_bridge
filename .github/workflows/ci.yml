@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  reddit-interactions:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reddit-interactions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: reddit-interactions/.nvmrc
+          cache: npm
+          cache-dependency-path: reddit-interactions/package-lock.json
+      - run: npm ci
+      - run: npm run test:types
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run build
+      # `devvit publish` needs an interactive login today; see the Tech
+      # stack doc. Uncomment once a non-interactive CI auth path is
+      # confirmed, or replace with whatever it turns out to need.
+      # - run: npm run publish
+
+  discord-interactions:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: discord-interactions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: discord-interactions
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo test
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: discord-interactions
