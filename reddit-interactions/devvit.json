@@ -5,6 +5,14 @@
   "triggers": {
     "onPostSubmit": "/internal/on/post/submit"
   },
+  "scheduler": {
+    "tasks": {
+      "syncFlairRoles": {
+        "endpoint": "/internal/on/schedule/sync-flair-roles",
+        "cron": "*/15 * * * *"
+      }
+    }
+  },
   "permissions": {
     "http": {
       "domains": ["discord.com"]
@@ -29,6 +37,16 @@
         "type": "string",
         "label": "Discord announcement channel ID",
         "helpText": "The channel posts are announced in. Must be an Announcement-type channel for auto-publish to other servers to work."
+      },
+      "discordPickerChannelId": {
+        "type": "string",
+        "label": "Discord role-picker channel ID",
+        "helpText": "The channel containing the pinned self-service role-picker message."
+      },
+      "discordPickerMessageId": {
+        "type": "string",
+        "label": "Discord role-picker message ID",
+        "helpText": "The ID of the pinned role-picker message. Its select-menu options are kept in sync with this subreddit's current post flairs automatically."
       }
     }
   },

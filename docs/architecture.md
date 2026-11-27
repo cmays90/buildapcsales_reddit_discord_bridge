@@ -16,16 +16,17 @@ Reading note: a new post or a flair change on the subreddit drives the Devvit ap
 
 ### Devvit app (Reddit to Discord)
 
-- Subscribes to Reddit's PostSubmit trigger (and a scheduled job or flair-change trigger) inside Reddit's platform — no server to host.
-- Calls Discord's bot REST API over fetch (Devvit apps may make outbound HTTP to domains declared in `devvit.json`) to post the rich embed, crosspost it in the announcement channel, and create or rename a role when a new flair appears.
+- Subscribes to Reddit's PostSubmit trigger inside Reddit's platform, and also runs a scheduled job every 15 minutes (`devvit.json`'s `scheduler.tasks`) — no server to host either way.
+- Calls Discord's bot REST API over fetch (Devvit apps may make outbound HTTP to domains declared in `devvit.json`) to post the rich embed, crosspost it in the announcement channel, and create a role when a new flair appears.
 - Looks up the Discord role ID to mention by querying the guild's current roles for a name match to the post's flair — no stored mapping to go stale.
+- The scheduled job lists the subreddit's current flair templates (there's no Reddit event for "a flair template changed," so this has to be a poll), ensures a role exists for each one, and PATCHes the pinned role-picker message's select-menu options to match — adding options for new flairs and pruning options for flairs that no longer exist. It never touches which roles a member already holds.
 - Holds the bot token as a Devvit secret.
 
 ### Interactions endpoint (Discord to member)
 
 - A small stateless HTTPS function (not a persistent bot process) that Discord calls directly when a member uses the role-picker component — exactly the non-privileged, no-persistent-connection shape the spec calls for.
 - Verifies the Ed25519 request signature, then calls Discord's bot REST API to add or remove the member's role.
-- Builds the picker's options by listing the guild's current roles live, so it never drifts from what the Devvit app created.
+- Reads the picker's options back from the select menu's own message components (whatever the Devvit app's scheduled job last wrote there) rather than querying the guild's roles live — it only ever needs to know what was offered, not the full role list.
 - Needs its own copy of the bot token plus the application's public key, in whatever platform hosts it.
 
 ## Decisions
@@ -34,6 +35,7 @@ Reading note: a new post or a flair change on the subreddit drives the Devvit ap
 | --- | --- | --- |
 | Where the Interactions endpoint runs | Cloudflare Worker | Free tier, reliable, and fits the no-persistent-connection shape — confirmed over self-hosting on the VPS. |
 | Self-service UX | A pinned select-menu message | No command to discover, and one message holds every flair role. |
+| Keeping the picker's options in sync | Devvit app polls Reddit's flair-template list every 15 minutes and PATCHes the message | No Reddit event fires on flair-template changes; the message itself (located via the `discordPickerChannelId`/`discordPickerMessageId` settings) is the only thing that needs to stay current, so no extra storage is needed. |
 | Catch-all role delivery | Opt in explicitly, same as any flair role | Per spec: never pre-granted. |
 
 See [Tech stack](tech-stack.md) for the concrete implementation choices (languages, libraries, CI).
