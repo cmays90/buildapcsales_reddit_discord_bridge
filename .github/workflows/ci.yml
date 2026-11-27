@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   reddit-interactions:
@@ -16,8 +18,9 @@ jobs:
         with:
           node-version-file: reddit-interactions/.nvmrc
           cache: npm
-          cache-dependency-path: reddit-interactions/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run test:types
       - run: npm run lint
       - run: npm run test:unit
@@ -45,12 +48,16 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
       - run: cargo test
+      # Deploy only on an actual merge to main, never on a pull_request
+      # event - otherwise every PR push would deploy to staging/production.
       - uses: cloudflare/wrangler-action@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: discord-interactions
           command: deploy --env staging
       - uses: cloudflare/wrangler-action@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: discord-interactions
