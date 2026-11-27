@@ -2,6 +2,23 @@ const API_BASE = 'https://discord.com/api/v10'
 export const CATCH_ALL_ROLE_NAME = 'All Posts'
 
 /**
+ * This server's existing per-flair roles are named "alert:<slug>" (e.g.
+ * "alert:gpu"), not the bare flair text - the picker still displays the
+ * bare flair name, this only affects which Discord role gets looked up
+ * or created.
+ */
+const ALERT_ROLE_PREFIX = 'alert:'
+
+/** Maps a Reddit flair's text to the Discord role name it corresponds to. */
+export function discordRoleNameForFlair(flairText: string): string {
+  const slug = flairText
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return `${ALERT_ROLE_PREFIX}${slug}`
+}
+
+/**
  * The role-picker select menu's custom_id. Duplicated from the identical
  * constant in discord-interactions/src/interactions.rs — the two sides
  * never share code, per docs/tech-stack.md, so keep them in sync by hand.
@@ -110,7 +127,11 @@ export async function postAnnouncement(
     CATCH_ALL_ROLE_NAME,
   )
   const flairRoleId = post.flairText
-    ? await ensureRoleId(guildId, botToken, post.flairText)
+    ? await ensureRoleId(
+        guildId,
+        botToken,
+        discordRoleNameForFlair(post.flairText),
+      )
     : undefined
   const mentionedRoleIds = [flairRoleId, catchAllRoleId].filter(
     (id): id is string => id !== undefined,

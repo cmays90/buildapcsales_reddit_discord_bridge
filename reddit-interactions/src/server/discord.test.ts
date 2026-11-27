@@ -4,6 +4,7 @@ import {
   buildPickerComponents,
   buildPickerEmbed,
   commentsUrl,
+  discordRoleNameForFlair,
   sourceDomain,
 } from './discord.ts'
 
@@ -47,4 +48,16 @@ test('buildPickerEmbed has a non-empty description and an https image url', () =
   const embed = buildPickerEmbed()
   assert.ok(embed.description.length > 0)
   assert.match(embed.image.url, /^https:\/\//)
+})
+
+test('discordRoleNameForFlair lowercases and prefixes a single word', () => {
+  assert.equal(discordRoleNameForFlair('GPU'), 'alert:gpu')
+})
+
+test('discordRoleNameForFlair hyphenates multi-word flairs', () => {
+  assert.equal(discordRoleNameForFlair('Mouse Pad'), 'alert:mouse-pad')
+})
+
+test('discordRoleNameForFlair collapses punctuation into single hyphens', () => {
+  assert.equal(discordRoleNameForFlair('SSD (SATA)'), 'alert:ssd-sata')
 })
