@@ -113,12 +113,15 @@ export function commentsUrl(permalink: string): string {
 
 /**
  * Posts the announcement embed, pinging the flair's role and the opt-in
- * catch-all role, then crossposts it so following servers receive it too.
+ * catch-all role, reacts with the server's upvote/downvote emoji, then
+ * crossposts it so following servers receive it too.
  */
 export async function postAnnouncement(
   guildId: string,
   channelId: string,
   botToken: string,
+  upvoteEmoji: string,
+  downvoteEmoji: string,
   post: AnnouncementPost,
 ): Promise<void> {
   const catchAllRoleId = await ensureRoleId(
@@ -159,6 +162,17 @@ export async function postAnnouncement(
     },
   )
 
+  for (const emoji of [upvoteEmoji, downvoteEmoji]) {
+    try {
+      await addReaction(channelId, message.id, botToken, emoji)
+    } catch (err) {
+      // Non-critical: a bad/missing emoji shouldn't block the announcement.
+      console.warn(
+        `failed to react with ${emoji}; ${err instanceof Error ? err.message : err}`,
+      )
+    }
+  }
+
   try {
     await discordFetch(
       `/channels/${channelId}/messages/${message.id}/crosspost`,
@@ -172,6 +186,24 @@ export async function postAnnouncement(
       `crosspost failed; ${err instanceof Error ? err.message : err}`,
     )
   }
+}
+
+/**
+ * Reacts to a message with the given emoji. For a custom emoji, pass
+ * "name:id" (e.g. "upvote:795431210360635402") - Discord's own `<name:id>`
+ * chat syntax doesn't apply here, this is the raw API identifier.
+ */
+async function addReaction(
+  channelId: string,
+  messageId: string,
+  botToken: string,
+  emoji: string,
+): Promise<void> {
+  await discordFetch<void>(
+    `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`,
+    botToken,
+    {method: 'PUT'},
+  )
 }
 
 /** Builds the role-picker message's embed: the banner image and explainer text. */

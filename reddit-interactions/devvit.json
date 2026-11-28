@@ -39,6 +39,16 @@
         "label": "Discord announcement channel ID",
         "helpText": "The channel posts are announced in. Must be an Announcement-type channel for auto-publish to other servers to work."
       },
+      "discordUpvoteEmoji": {
+        "type": "string",
+        "label": "Discord upvote emoji",
+        "helpText": "The custom emoji the bot reacts with, as \"name:id\" (e.g. \"upvote:795431210360635402\") - not Discord's chat <name:id> syntax, just the raw name and snowflake id."
+      },
+      "discordDownvoteEmoji": {
+        "type": "string",
+        "label": "Discord downvote emoji",
+        "helpText": "Same format as the upvote emoji setting above: \"name:id\"."
+      },
       "discordPickerChannelId": {
         "type": "string",
         "label": "Discord role-picker channel ID",
