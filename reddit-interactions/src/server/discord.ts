@@ -1,3 +1,5 @@
+import {errorDetail, logWarn} from './log.ts'
+
 const API_BASE = 'https://discord.com/api/v10'
 
 /** The picker's label for the always-offered catch-all option. */
@@ -85,28 +87,44 @@ export type PickerState = {
   placeholder: string | undefined
 }
 
-/** Reads the flair's Discord role, creating it if this is the flair's first post. */
-export async function ensureRoleId(
+/**
+ * Resolves each of `roleNames` to its Discord role id, creating any that
+ * don't exist yet (first post/sync under that flair). Fetches the guild's
+ * role list once and reuses it for every name, rather than once per name -
+ * calling a per-name resolver in a loop or `Promise.all` would GET the
+ * entire role list redundantly for each one, multiplying Discord API
+ * traffic by the number of roles involved (we saw this trip both Discord's
+ * own rate limit and Devvit's outbound-request throttle on a subreddit with
+ * many flairs). Returns ids in the same order as `roleNames`.
+ */
+export async function ensureRoleIds(
   guildId: string,
   botToken: string,
-  roleName: string,
-): Promise<string> {
+  roleNames: readonly string[],
+): Promise<string[]> {
   const roles = await discordFetch<DiscordRole[]>(
     `/guilds/${guildId}/roles`,
     botToken,
   )
-  const existing = roles.find(role => role.name === roleName)
-  if (existing) return existing.id
-
-  const created = await discordFetch<DiscordRole>(
-    `/guilds/${guildId}/roles`,
-    botToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({name: roleName, mentionable: true}),
-    },
-  )
-  return created.id
+  const ids: string[] = []
+  for (const roleName of roleNames) {
+    const existing = roles.find(role => role.name === roleName)
+    if (existing) {
+      ids.push(existing.id)
+      continue
+    }
+    const created = await discordFetch<DiscordRole>(
+      `/guilds/${guildId}/roles`,
+      botToken,
+      {
+        method: 'POST',
+        body: JSON.stringify({name: roleName, mentionable: true}),
+      },
+    )
+    roles.push(created)
+    ids.push(created.id)
+  }
+  return ids
 }
 
 export function sourceDomain(url: string): string | undefined {
@@ -117,8 +135,15 @@ export function sourceDomain(url: string): string | undefined {
   }
 }
 
+/**
+ * Builds the short redd.it link to a post's comments, extracted from its
+ * permalink - the format the reference bot used, and shorter than the full
+ * /r/<sub>/comments/<id>/<slug>/ url. Falls back to the full reddit.com
+ * link if the permalink doesn't look like the expected shape.
+ */
 export function commentsUrl(permalink: string): string {
-  return `https://www.reddit.com${permalink}`
+  const id = permalink.match(/\/comments\/([a-z0-9]+)/i)?.[1]
+  return id ? `https://redd.it/${id}` : `https://www.reddit.com${permalink}`
 }
 
 /**
@@ -137,7 +162,7 @@ export function faviconUrl(domain: string): string {
  * A deterministic accent color per flair, so the embed's left bar is
  * flair-coded without hand-maintaining a flair -> color map that would go
  * stale as the subreddit adds flairs (flairs/roles are otherwise created
- * automatically, see ensureRoleId). Falls back to Discord's neutral grey
+ * automatically, see ensureRoleIds). Falls back to Discord's neutral grey
  * for flairless posts.
  */
 export function flairColor(flairText: string | undefined): number {
@@ -173,33 +198,54 @@ function hslToRgbInt(h: number, s: number, l: number): number {
 }
 
 /**
+ * Resolves which role ids to ping for a post, purely from the name->id
+ * cache the last flair sync built (see syncFlairRoles) - no live Discord
+ * lookup here. A flair whose role isn't in the cache yet (created since the
+ * last sync) is reported via `missingFlairRoleName` rather than chased down
+ * live: the post still goes out, just without that one ping, and starts
+ * pinging again once the next sync picks up the new flair.
+ */
+export function resolveMentionedRoleIds(
+  roleCache: Readonly<Record<string, string>>,
+  flairText: string | undefined,
+): {roleIds: string[]; missingFlairRoleName: string | undefined} {
+  const flairRoleName = flairText
+    ? discordRoleNameForFlair(flairText)
+    : undefined
+  const roleNames = [flairRoleName, CATCH_ALL_DISCORD_ROLE_NAME].filter(
+    (name): name is string => name !== undefined,
+  )
+  const roleIds = roleNames
+    .map(name => roleCache[name])
+    .filter((id): id is string => id !== undefined)
+  const missingFlairRoleName =
+    flairRoleName !== undefined && roleCache[flairRoleName] === undefined
+      ? flairRoleName
+      : undefined
+  return {roleIds, missingFlairRoleName}
+}
+
+/**
  * Posts the announcement embed, pinging the flair's role and the opt-in
  * catch-all role, reacts with the server's upvote/downvote emoji, then
  * crossposts it so following servers receive it too.
  */
 export async function postAnnouncement(
-  guildId: string,
   channelId: string,
   botToken: string,
   upvoteEmoji: string,
   downvoteEmoji: string,
   post: AnnouncementPost,
+  roleCache: Readonly<Record<string, string>>,
 ): Promise<void> {
-  const catchAllRoleId = await ensureRoleId(
-    guildId,
-    botToken,
-    CATCH_ALL_DISCORD_ROLE_NAME,
-  )
-  const flairRoleId = post.flairText
-    ? await ensureRoleId(
-        guildId,
-        botToken,
-        discordRoleNameForFlair(post.flairText),
-      )
-    : undefined
-  const mentionedRoleIds = [flairRoleId, catchAllRoleId].filter(
-    (id): id is string => id !== undefined,
-  )
+  const {roleIds: mentionedRoleIds, missingFlairRoleName} =
+    resolveMentionedRoleIds(roleCache, post.flairText)
+  if (missingFlairRoleName) {
+    logWarn('flair role not cached; announcing without that ping', {
+      flairText: post.flairText,
+      roleName: missingFlairRoleName,
+    })
+  }
 
   const domain = sourceDomain(post.url)
   const embed = {
@@ -238,9 +284,12 @@ export async function postAnnouncement(
       await addReaction(channelId, message.id, botToken, emoji)
     } catch (err) {
       // Non-critical: a bad/missing emoji shouldn't block the announcement.
-      console.warn(
-        `failed to react with ${emoji}; ${err instanceof Error ? err.message : err}`,
-      )
+      logWarn('reaction failed', {
+        channelId,
+        messageId: message.id,
+        emoji,
+        err: errorDetail(err),
+      })
     }
   }
 
@@ -253,9 +302,11 @@ export async function postAnnouncement(
   } catch (err) {
     // Non-critical: the announcement is already posted. A non-Announcement
     // channel, or one nobody follows, will fail here and that's fine.
-    console.warn(
-      `crosspost failed; ${err instanceof Error ? err.message : err}`,
-    )
+    logWarn('crosspost failed', {
+      channelId,
+      messageId: message.id,
+      err: errorDetail(err),
+    })
   }
 }
 
