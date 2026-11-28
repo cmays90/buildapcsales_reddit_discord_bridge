@@ -5,6 +5,8 @@ import {
   buildPickerEmbed,
   commentsUrl,
   discordRoleNameForFlair,
+  faviconUrl,
+  flairColor,
   sourceDomain,
 } from './discord.ts'
 
@@ -60,4 +62,35 @@ test('discordRoleNameForFlair hyphenates multi-word flairs', () => {
 
 test('discordRoleNameForFlair collapses punctuation into single hyphens', () => {
   assert.equal(discordRoleNameForFlair('SSD (SATA)'), 'alert:ssd-sata')
+})
+
+test('faviconUrl requests Google favicon service for the given domain', () => {
+  assert.equal(
+    faviconUrl('amazon.com'),
+    'https://www.google.com/s2/favicons?sz=64&domain=amazon.com',
+  )
+})
+
+test('faviconUrl encodes a domain with special characters', () => {
+  assert.equal(
+    faviconUrl('foo bar.com'),
+    'https://www.google.com/s2/favicons?sz=64&domain=foo%20bar.com',
+  )
+})
+
+test('flairColor is deterministic for the same flair', () => {
+  assert.equal(flairColor('CPU'), flairColor('CPU'))
+})
+
+test('flairColor differs across flairs', () => {
+  assert.notEqual(flairColor('CPU'), flairColor('GPU'))
+})
+
+test('flairColor returns a valid 24-bit color', () => {
+  const color = flairColor('CPU')
+  assert.ok(color >= 0 && color <= 0xffffff)
+})
+
+test('flairColor falls back to neutral grey for flairless posts', () => {
+  assert.equal(flairColor(undefined), 0x4e5058)
 })
