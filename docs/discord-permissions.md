@@ -12,13 +12,14 @@ What this bot's Discord application needs when invited to a guild, and why — f
 | Read Message History | `65536` | Discord's `GET /channels/{channel}/messages/{message}` (fetching a single message by id) requires this in addition to View Channel — used by [`getPickerState`](../reddit-interactions/src/server/discord.ts) to read the picker message's current select-menu options before deciding whether to update them. |
 | Manage Roles | `268435456` | Creates the per-flair roles and the catch-all role ([`ensureRoleId`](../reddit-interactions/src/server/discord.ts)). The bot's own role must sit **above** every role it creates or manages — Discord enforces this by hierarchy position, not a permission bit. |
 | Pin Messages | `2251799813685248` | Pins the role-picker message so it's easy to find ([`pinMessage`](../reddit-interactions/src/server/discord.ts)). Discord split this out of Manage Messages into its own permission as of 2026-02-23 — see "Explicitly not needed" below. |
+| Add Reactions | `64` | Reacts to each announcement with the configured upvote/downvote emoji ([`addReaction`](../reddit-interactions/src/server/discord.ts)). Discord's "Create Reaction" endpoint only requires this when nobody has reacted with that emoji yet — since the bot always reacts to its own just-posted message, it's always the first reactor, so this is required, not optional. |
 
-**Total invite permission integer: `2251800082205696`**
+**Total invite permission integer: `2251800082205760`**
 
 ## Invite URL
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=<bot's application/user id>&permissions=2251800082205696&scope=bot
+https://discord.com/api/oauth2/authorize?client_id=<bot's application/user id>&permissions=2251800082205760&scope=bot
 ```
 
 Re-running this (with the bot already in the guild) updates its existing managed role to match — this is how to *change* the bot's permissions later too, not just the initial invite. No `applications.commands` scope is needed; there's no slash command (see [architecture.md](architecture.md)).

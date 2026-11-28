@@ -51,12 +51,15 @@ async function routePostSubmit(
   const {post, author} = event
   if (!post || !author) return {}
 
-  const [botToken, guildId, channelId] = await Promise.all([
-    settings.get<string>('discordBotToken'),
-    settings.get<string>('discordGuildId'),
-    settings.get<string>('discordChannelId'),
-  ])
-  if (!botToken || !guildId || !channelId) {
+  const [botToken, guildId, channelId, upvoteEmoji, downvoteEmoji] =
+    await Promise.all([
+      settings.get<string>('discordBotToken'),
+      settings.get<string>('discordGuildId'),
+      settings.get<string>('discordChannelId'),
+      settings.get<string>('discordUpvoteEmoji'),
+      settings.get<string>('discordDownvoteEmoji'),
+    ])
+  if (!botToken || !guildId || !channelId || !upvoteEmoji || !downvoteEmoji) {
     console.warn(
       'reddit-interactions is not configured for this subreddit; skipping announcement',
     )
@@ -64,13 +67,20 @@ async function routePostSubmit(
   }
 
   try {
-    await postAnnouncement(guildId, channelId, botToken, {
-      title: post.title,
-      permalink: post.permalink,
-      url: post.url,
-      flairText: post.linkFlair?.text,
-      authorName: author.name,
-    })
+    await postAnnouncement(
+      guildId,
+      channelId,
+      botToken,
+      upvoteEmoji,
+      downvoteEmoji,
+      {
+        title: post.title,
+        permalink: post.permalink,
+        url: post.url,
+        flairText: post.linkFlair?.text,
+        authorName: author.name,
+      },
+    )
   } catch (err) {
     console.error(
       `failed to announce post ${post.id}; ${err instanceof Error ? err.stack : err}`,
