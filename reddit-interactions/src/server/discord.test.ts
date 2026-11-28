@@ -26,10 +26,17 @@ test('sourceDomain returns undefined for an unparsable url', () => {
   assert.equal(sourceDomain('not a url'), undefined)
 })
 
-test('commentsUrl prefixes the permalink', () => {
+test('commentsUrl builds the redd.it short link from the permalink', () => {
   assert.equal(
     commentsUrl('/r/buildapcsales/comments/abc123/title/'),
-    'https://www.reddit.com/r/buildapcsales/comments/abc123/title/',
+    'https://redd.it/abc123',
+  )
+})
+
+test('commentsUrl falls back to the full reddit.com link for an unparsable permalink', () => {
+  assert.equal(
+    commentsUrl('/not/a/permalink'),
+    'https://www.reddit.com/not/a/permalink',
   )
 })
 

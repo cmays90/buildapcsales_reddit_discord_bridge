@@ -135,8 +135,15 @@ export function sourceDomain(url: string): string | undefined {
   }
 }
 
+/**
+ * Builds the short redd.it link to a post's comments, extracted from its
+ * permalink - the format the reference bot used, and shorter than the full
+ * /r/<sub>/comments/<id>/<slug>/ url. Falls back to the full reddit.com
+ * link if the permalink doesn't look like the expected shape.
+ */
 export function commentsUrl(permalink: string): string {
-  return `https://www.reddit.com${permalink}`
+  const id = permalink.match(/\/comments\/([a-z0-9]+)/i)?.[1]
+  return id ? `https://redd.it/${id}` : `https://www.reddit.com${permalink}`
 }
 
 /**
