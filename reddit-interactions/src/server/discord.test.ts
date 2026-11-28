@@ -7,6 +7,7 @@ import {
   discordRoleNameForFlair,
   faviconUrl,
   flairColor,
+  resolveMentionedRoleIds,
   sourceDomain,
 } from './discord.ts'
 
@@ -93,4 +94,35 @@ test('flairColor returns a valid 24-bit color', () => {
 
 test('flairColor falls back to neutral grey for flairless posts', () => {
   assert.equal(flairColor(undefined), 0x4e5058)
+})
+
+test('resolveMentionedRoleIds pings both the flair and catch-all roles when cached', () => {
+  const cache = {'alert:cpu': '111', 'alert:bapcs': '222'}
+  assert.deepEqual(resolveMentionedRoleIds(cache, 'CPU'), {
+    roleIds: ['111', '222'],
+    missingFlairRoleName: undefined,
+  })
+})
+
+test('resolveMentionedRoleIds pings only the catch-all role when flairless', () => {
+  const cache = {'alert:bapcs': '222'}
+  assert.deepEqual(resolveMentionedRoleIds(cache, undefined), {
+    roleIds: ['222'],
+    missingFlairRoleName: undefined,
+  })
+})
+
+test('resolveMentionedRoleIds skips the flair ping on a cache miss rather than looking it up live', () => {
+  const cache = {'alert:bapcs': '222'}
+  assert.deepEqual(resolveMentionedRoleIds(cache, 'GPU'), {
+    roleIds: ['222'],
+    missingFlairRoleName: 'alert:gpu',
+  })
+})
+
+test('resolveMentionedRoleIds pings nothing when the cache is empty', () => {
+  assert.deepEqual(resolveMentionedRoleIds({}, 'CPU'), {
+    roleIds: [],
+    missingFlairRoleName: 'alert:cpu',
+  })
 })

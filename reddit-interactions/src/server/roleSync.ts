@@ -4,12 +4,13 @@ import {
   CATCH_ALL_ROLE_NAME,
   createPickerMessage,
   discordRoleNameForFlair,
-  ensureRoleId,
+  ensureRoleIds,
   getPickerState,
   type PickerOption,
   pinMessage,
   updatePickerOptions,
 } from './discord.ts'
+import {logWarn} from './log.ts'
 
 /** Discord string-select components cap at 25 options. */
 const MAX_PICKER_OPTIONS = 25
@@ -63,7 +64,9 @@ export function diffOptions(
  *
  * If `pickerMessageId` is missing, or points at a message that's been
  * deleted, a new picker message is created and pinned in its place. Returns
- * the message id actually used so the caller can persist a newly-created one.
+ * the message id actually used so the caller can persist a newly-created one,
+ * plus the full roleName -> id map so the caller can refresh the cache
+ * postAnnouncement reads from instead of hitting Discord on every post.
  */
 export async function syncFlairRoles(opts: {
   subredditName: string
@@ -71,7 +74,7 @@ export async function syncFlairRoles(opts: {
   pickerChannelId: string
   pickerMessageId: string | undefined
   botToken: string
-}): Promise<{pickerMessageId: string}> {
+}): Promise<{pickerMessageId: string; roleIds: Record<string, string>}> {
   const {subredditName, guildId, pickerChannelId, pickerMessageId, botToken} =
     opts
 
@@ -88,18 +91,28 @@ export async function syncFlairRoles(opts: {
       roleName: discordRoleNameForFlair(name),
     })),
   ]
-  const desiredOptions = await Promise.all(
-    desired.map(async ({label, roleName}) => ({
-      label,
-      value: await ensureRoleId(guildId, botToken, roleName),
-    })),
+  const resolvedIds = await ensureRoleIds(
+    guildId,
+    botToken,
+    desired.map(d => d.roleName),
   )
+  // ensureRoleIds returns one id per input name, same order (see its doc
+  // comment), so this index always lands on a real value.
+  const roleIds = Object.fromEntries(
+    desired.map(({roleName}, i) => [roleName, resolvedIds[i] as string]),
+  )
+  const desiredOptions = desired.map(({label, roleName}) => ({
+    label,
+    value: roleIds[roleName] as string,
+  }))
 
   const {options: clamped, truncated} = clampOptions(desiredOptions)
   if (truncated) {
-    console.warn(
-      `${subredditName} has more than ${MAX_PICKER_OPTIONS} flairs; the role picker can only offer ${MAX_PICKER_OPTIONS}`,
-    )
+    logWarn('role picker truncated: too many flairs', {
+      subreddit: subredditName,
+      flairCount: desiredOptions.length,
+      limit: MAX_PICKER_OPTIONS,
+    })
   }
 
   if (pickerMessageId) {
@@ -119,11 +132,13 @@ export async function syncFlairRoles(opts: {
           current.placeholder,
         )
       }
-      return {pickerMessageId}
+      return {pickerMessageId, roleIds}
     }
-    console.warn(
-      `${subredditName}'s role-picker message ${pickerMessageId} is gone; creating a new one`,
-    )
+    logWarn('role picker message missing; recreating', {
+      subreddit: subredditName,
+      pickerChannelId,
+      pickerMessageId,
+    })
   }
 
   const newMessageId = await createPickerMessage(
@@ -133,5 +148,5 @@ export async function syncFlairRoles(opts: {
     PICKER_PLACEHOLDER,
   )
   await pinMessage(pickerChannelId, newMessageId, botToken)
-  return {pickerMessageId: newMessageId}
+  return {pickerMessageId: newMessageId, roleIds}
 }

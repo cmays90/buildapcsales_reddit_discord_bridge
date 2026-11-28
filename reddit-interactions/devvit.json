@@ -9,7 +9,7 @@
     "tasks": {
       "syncFlairRoles": {
         "endpoint": "/internal/on/schedule/sync-flair-roles",
-        "cron": "*/15 * * * *"
+        "cron": "0 */4 * * *"
       }
     }
   },
@@ -32,7 +32,7 @@
       "discordGuildId": {
         "type": "string",
         "label": "Discord server (guild) ID",
-        "helpText": "The Discord server that receives this subreddit's post announcements."
+        "helpText": "The Discord server whose roles this subreddit's flairs map to. Used by the periodic flair-role sync, not by posting itself."
       },
       "discordChannelId": {
         "type": "string",
