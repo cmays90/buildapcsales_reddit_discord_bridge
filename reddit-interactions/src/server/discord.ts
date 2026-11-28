@@ -1,5 +1,15 @@
 const API_BASE = 'https://discord.com/api/v10'
+
+/** The picker's label for the always-offered catch-all option. */
 export const CATCH_ALL_ROLE_NAME = 'All Posts'
+
+/**
+ * The actual Discord role behind the catch-all picker option - an existing
+ * role this server already uses for "every post" notifications, not one
+ * this app creates. The picker still displays CATCH_ALL_ROLE_NAME as the
+ * label; only the underlying role name differs.
+ */
+export const CATCH_ALL_DISCORD_ROLE_NAME = 'alert:bapcs'
 
 /**
  * This server's existing per-flair roles are named "alert:<slug>" (e.g.
@@ -124,7 +134,7 @@ export async function postAnnouncement(
   const catchAllRoleId = await ensureRoleId(
     guildId,
     botToken,
-    CATCH_ALL_ROLE_NAME,
+    CATCH_ALL_DISCORD_ROLE_NAME,
   )
   const flairRoleId = post.flairText
     ? await ensureRoleId(
