@@ -122,6 +122,57 @@ export function commentsUrl(permalink: string): string {
 }
 
 /**
+ * A stable, non-garish favicon for a domain. Fetching a site's own
+ * `/favicon.ico` directly is unreliable (missing, wrong content-type,
+ * redirects) and renders as a broken image in the embed; Google's favicon
+ * service resolves those cases server-side and always returns a real image
+ * (falling back to a generic globe icon), so the embed's eyebrow icon never
+ * breaks.
+ */
+export function faviconUrl(domain: string): string {
+  return `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`
+}
+
+/**
+ * A deterministic accent color per flair, so the embed's left bar is
+ * flair-coded without hand-maintaining a flair -> color map that would go
+ * stale as the subreddit adds flairs (flairs/roles are otherwise created
+ * automatically, see ensureRoleId). Falls back to Discord's neutral grey
+ * for flairless posts.
+ */
+export function flairColor(flairText: string | undefined): number {
+  if (!flairText) return 0x4e5058
+  let hash = 0
+  for (let i = 0; i < flairText.length; i++) {
+    hash = (hash * 31 + flairText.charCodeAt(i)) | 0
+  }
+  const hue = ((hash % 360) + 360) % 360
+  return hslToRgbInt(hue, 65, 55)
+}
+
+function hslToRgbInt(h: number, s: number, l: number): number {
+  const sNorm = s / 100
+  const lNorm = l / 100
+  const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = lNorm - c / 2
+  const [r, g, b] =
+    h < 60
+      ? [c, x, 0]
+      : h < 120
+        ? [x, c, 0]
+        : h < 180
+          ? [0, c, x]
+          : h < 240
+            ? [0, x, c]
+            : h < 300
+              ? [x, 0, c]
+              : [c, 0, x]
+  const toByte = (v: number) => Math.round((v + m) * 255)
+  return (toByte(r) << 16) | (toByte(g) << 8) | toByte(b)
+}
+
+/**
  * Posts the announcement embed, pinging the flair's role and the opt-in
  * catch-all role, reacts with the server's upvote/downvote emoji, then
  * crossposts it so following servers receive it too.
@@ -154,18 +205,28 @@ export async function postAnnouncement(
   const embed = {
     title: post.title,
     url: post.url,
-    author: {name: post.authorName},
-    fields: domain ? [{name: 'Domain', value: domain, inline: true}] : [],
-    description: `[Comments](${commentsUrl(post.permalink)})`,
+    color: flairColor(post.flairText),
+    author: domain
+      ? {name: domain, url: post.url, icon_url: faviconUrl(domain)}
+      : undefined,
+    fields: [
+      {name: 'Author', value: post.authorName, inline: true},
+      {name: 'Comments', value: commentsUrl(post.permalink), inline: true},
+    ],
   }
 
+  // The title is repeated in plain content, not just the embed, because
+  // crossposted/followed copies of this message can land in channels where
+  // the "Embed Links" permission is off - the content line is all that
+  // survives there.
+  const mentions = mentionedRoleIds.map(id => `<@&${id}>`).join(' ')
   const message = await discordFetch<DiscordMessage>(
     `/channels/${channelId}/messages`,
     botToken,
     {
       method: 'POST',
       body: JSON.stringify({
-        content: mentionedRoleIds.map(id => `<@&${id}>`).join(' '),
+        content: `${post.title}\n${mentions}`,
         embeds: [embed],
         allowed_mentions: {roles: mentionedRoleIds},
       }),

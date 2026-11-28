@@ -6,7 +6,7 @@ BAPCS Bot connects Discord to the larger r/buildapcsales reddit: new subreddit p
 
 ## What it does
 
-- **Post alerts** — every new subreddit submission is posted to a designated Discord channel as a rich embed: title, link, author, source domain, and a link to the comments.
+- **Post alerts** — every new subreddit submission is posted to a designated Discord channel: the title as plain message content (so it survives even where embeds are disabled), plus a rich, flair-colored embed with the title link, source domain, author, and a link to the comments.
 - **Per-flair notifications** — a Discord role exists for each subreddit post flair; holding that role gets a member pinged whenever a matching post goes out. One catch-all role pings on every post and must be explicitly opted into.
 - **Self-service role management** — members manage their own notification roles with no moderator involvement required.
 - **Automatic role maintenance** — when the subreddit adds a new post flair, the matching Discord role is created automatically; flair changes on Reddit never require manual role setup in Discord.
