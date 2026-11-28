@@ -1,5 +1,6 @@
 import {reddit} from '@devvit/web/server'
 import {
+  CATCH_ALL_DISCORD_ROLE_NAME,
   CATCH_ALL_ROLE_NAME,
   createPickerMessage,
   discordRoleNameForFlair,
@@ -81,7 +82,7 @@ export async function syncFlairRoles(opts: {
     ),
   ]
   const desired = [
-    {label: CATCH_ALL_ROLE_NAME, roleName: CATCH_ALL_ROLE_NAME},
+    {label: CATCH_ALL_ROLE_NAME, roleName: CATCH_ALL_DISCORD_ROLE_NAME},
     ...flairNames.map(name => ({
       label: name,
       roleName: discordRoleNameForFlair(name),
