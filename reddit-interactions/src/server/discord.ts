@@ -227,8 +227,8 @@ export function resolveMentionedRoleIds(
 
 /**
  * Posts the announcement embed, pinging the flair's role and the opt-in
- * catch-all role, reacts with the server's upvote/downvote emoji, then
- * crossposts it so following servers receive it too.
+ * catch-all role, crossposts it so following servers receive it, then
+ * reacts with the server's upvote/downvote emoji.
  */
 export async function postAnnouncement(
   channelId: string,
@@ -279,7 +279,15 @@ export async function postAnnouncement(
     },
   )
 
+  // Publish before reacting: crossposting is what fans the announcement out
+  // to following servers, so it goes out while the request budget is
+  // freshest; the reactions are cosmetic and can afford to be the ones that
+  // occasionally miss.
+  await sleep(API_CALL_PACING_MS)
+  await crosspost(channelId, message.id, botToken)
+
   for (const emoji of [upvoteEmoji, downvoteEmoji]) {
+    await sleep(API_CALL_PACING_MS)
     try {
       await addReaction(channelId, message.id, botToken, emoji)
     } catch (err) {
@@ -292,22 +300,55 @@ export async function postAnnouncement(
       })
     }
   }
+}
 
+/**
+ * Pause between sequential Discord API calls for one announcement.
+ * Bursting them back-to-back (post, crosspost, two reactions) has tripped
+ * both Discord's own per-route rate limit (reactions) and Devvit's
+ * outbound-request throttle (crosspost) in production; spacing every call
+ * out clears both.
+ */
+const API_CALL_PACING_MS = 300
+
+/**
+ * Crossposts the announcement so following servers receive it, retrying
+ * once after another paced delay on failure - the same burst that trips
+ * Discord's or Devvit's rate limit the first time has usually cleared by
+ * then. Non-critical either way: the announcement is already posted, and a
+ * non-Announcement channel (or one nobody follows) will keep failing here
+ * regardless, which is fine.
+ */
+async function crosspost(
+  channelId: string,
+  messageId: string,
+  botToken: string,
+): Promise<void> {
+  const path = `/channels/${channelId}/messages/${messageId}/crosspost`
   try {
-    await discordFetch(
-      `/channels/${channelId}/messages/${message.id}/crosspost`,
-      botToken,
-      {method: 'POST'},
-    )
+    await discordFetch(path, botToken, {method: 'POST'})
+    return
   } catch (err) {
-    // Non-critical: the announcement is already posted. A non-Announcement
-    // channel, or one nobody follows, will fail here and that's fine.
-    logWarn('crosspost failed', {
+    logWarn('crosspost failed; retrying once', {
       channelId,
-      messageId: message.id,
+      messageId,
       err: errorDetail(err),
     })
   }
+  await sleep(API_CALL_PACING_MS)
+  try {
+    await discordFetch(path, botToken, {method: 'POST'})
+  } catch (err) {
+    logWarn('crosspost retry failed', {
+      channelId,
+      messageId,
+      err: errorDetail(err),
+    })
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
